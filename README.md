@@ -1,268 +1,571 @@
 # AIOps Simulation Platform
 
-A human-governed AIOps platform (simulation/demo) that correlates **network
-telemetry, application telemetry, facility alarms and IoT sensor streams** to
-identify likely root causes of service degradation and recommend **safe recovery
-playbooks**.
+A human-governed AIOps platform that correlates **simulated network telemetry, application telemetry, facility alarms, and IoT sensor streams** to identify likely root causes of service degradation and recommend **safe recovery playbooks**.
 
-It ranks actions by **risk**, requires **human approval** for medium/high-risk
-actions, keeps a full **audit trail**, and remains useful when some data sources
-are missing or stale.
+The platform ranks recovery actions by **risk**, applies **human approval controls** to higher-risk actions, maintains an **audit trail**, and continues to provide diagnostics when some telemetry sources are missing or stale.
 
-> This is a simulation only. It NEVER controls real infrastructure. All playbook
-> executions are simulated and safe.
+> **Important:** This is a simulation/demo platform. It does **not** control real infrastructure, execute real remediation commands, or collect real production telemetry. All scenarios, telemetry, and playbook executions are simulated.
 
 ---
 
 ## Architecture
 
+```text
+Railway
+└── FastAPI + Uvicorn
+    ├── Frontend
+    │   ├── Dashboard
+    │   └── Admin / Operations
+    ├── REST API
+    ├── Simulation Engine
+    ├── Groq LLM (optional)
+    └── SQLite
+        └── Persistent database on Railway Volume
+
+
+Local Development
+
+Browser
+   │
+   ▼
+FastAPI + Uvicorn
+   ├── HTML / CSS / JavaScript frontend
+   ├── REST API
+   ├── Simulation engine
+   ├── Groq LLM (optional)
+   └── SQLite
 ```
-Vercel (static frontend)
-   └── HTTPS /api/*  ──►  Railway (FastAPI + Uvicorn)
-                              └── Railway PostgreSQL (DATABASE_URL)
-                              └── Groq LLM (openai/gpt-oss-120b)   [optional]
 
-Local development
-   Browser ──► FastAPI serves frontend + /api ──► SQLite (backend/data/aiops.db)
-```
+### Technology Stack
 
-- **Frontend**: vanilla HTML/CSS/JS, no build step. Polls the API with `fetch()`
-  and updates the DOM in place (never reloads the page).
-- **Backend**: FastAPI + Uvicorn, SQLAlchemy ORM.
-- **Database**: SQLite locally (zero config), PostgreSQL in production via
-  `DATABASE_URL`. Tables are created idempotently on startup.
-- **AI**: official `groq` Python SDK, model `openai/gpt-oss-120b`. Structured
-  JSON diagnosis validated against a **closed set** of root causes and playbooks.
-  If Groq is unavailable/invalid the platform safely falls back to a
-  deterministic rule-based diagnosis and reports that AI was unavailable.
+* **Frontend:** HTML, CSS, vanilla JavaScript
+* **Backend:** Python, FastAPI, Uvicorn
+* **Database:** SQLite
+* **ORM:** SQLAlchemy
+* **AI:** Groq API with `openai/gpt-oss-120b`
+* **Validation:** Pydantic
+* **Deployment:** Railway
+* **Persistent storage:** Railway Volume
+* **Telemetry:** Simulated telemetry and correlated scenarios
 
-### Telemetry vs. incident state (kept separate)
+The frontend communicates with the FastAPI backend using REST endpoints and JavaScript `fetch()` calls. The application does not require a separate frontend deployment.
 
-```
-Telemetry:   NORMAL ──► DEGRADED ──► RECOVERING ──► NORMAL
-Incident:    DETECTED ──► ANALYZED ──► AWAITING_APPROVAL ──► EXECUTED ──► RESOLVED
-```
+### Database architecture
 
-Old incidents never make the live dashboard look broken: current telemetry is
-governed by the active scenario, while every incident/reading stays in history
-and the audit trail.
+SQLite is the actual database used by the application, while **SQLAlchemy provides the ORM layer** used by the backend to work with the database.
 
-### Risk governance (never bypassed by the AI)
+This keeps database operations separated from the application logic and allows the same ORM-based code to manage incidents, telemetry history, diagnoses, and audit records.
 
-| Risk  | Execution policy                                   | Example playbooks                      |
-|-------|----------------------------------------------------|----------------------------------------|
-| LOW   | AI may auto-execute (safe, reversible)             | `pb_hvac_recovery`, `pb_queue_scale_up` |
-| MEDIUM| Human approval mandatory                           | `pb_network_failover`, `pb_app_rollback`, `pb_client_throttle` |
-| HIGH  | Explicit human approval mandatory                  | `pb_power_switchover`                  |
+For local development, the SQLite database is stored under the backend data directory.
 
-The risk level is a property of the playbook, not a free-form AI choice.
+For Railway deployment, the SQLite database should be placed on a **Railway Volume** so that database data persists across application restarts and redeployments.
 
 ---
 
-## Project layout
+## Telemetry and Incident State
 
+Telemetry state and incident state are intentionally kept separate.
+
+```text
+Telemetry:
+NORMAL ──► DEGRADED ──► RECOVERING ──► NORMAL
+
+Incident:
+DETECTED ──► ANALYZED ──►
+AWAITING_APPROVAL ──► EXECUTED ──► RESOLVED
 ```
+
+An old incident does not permanently make the live dashboard appear unhealthy. Current telemetry is controlled by the active simulation scenario, while incidents, telemetry snapshots, diagnoses, and audit records remain available in history.
+
+---
+
+## AI Diagnosis
+
+The platform uses Groq for AI-assisted root-cause analysis.
+
+The AI receives correlated evidence from:
+
+* Network telemetry
+* Application telemetry
+* Facility alarms
+* IoT sensor readings
+
+The AI produces a structured diagnosis containing:
+
+* Likely root cause
+* Confidence score
+* Evidence-based reasoning
+* Recommended playbook
+* Risk level
+* Missing or stale data sources
+
+The AI is constrained to the application's predefined root-cause labels and playbooks rather than being allowed to invent arbitrary remediation actions.
+
+If Groq is unavailable or produces invalid output, the platform safely falls back to a deterministic rule-based diagnosis.
+
+This ensures that the application remains functional even without an LLM API key.
+
+---
+
+## Risk Governance
+
+Risk is determined by the application's predefined playbook policy rather than being freely chosen by the AI.
+
+| Risk   | Execution Policy                                                                             | Example Playbooks                                              |
+| ------ | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| LOW    | Can be automatically executed because the simulated action is considered safe and reversible | `pb_hvac_recovery`, `pb_queue_scale_up`                        |
+| MEDIUM | Human approval required                                                                      | `pb_network_failover`, `pb_app_rollback`, `pb_client_throttle` |
+| HIGH   | Explicit human approval required                                                             | `pb_power_switchover`                                          |
+
+The AI can recommend a playbook, but it cannot bypass the platform's risk governance rules.
+
+All simulated executions are recorded in the audit trail.
+
+---
+
+## Project Layout
+
+```text
 project/
-  backend/
-    app/
-      main.py            # FastAPI app, CORS, static frontends, startup init
-      config.py          # env-driven config (.env, DATABASE_URL, Groq, CORS)
-      routes/api.py      # REST endpoints
-      services/          # telemetry, incidents, historical, audit
-      ai/                # diagnosis (Groq), fallback, validation, prompts
-      database/db.py     # engine + session (SQLite / PostgreSQL)
-      models/            # SQLAlchemy entities + Pydantic schemas
-      simulation/        # scenario definitions + telemetry generator
-      playbooks.py       # closed root-cause/playbook/risk sets
-    pyproject.toml       # uv dependency manifest
-    .env.example
-  frontend/
-    config.js            # API base override for Vercel
-    dashboard/           # index.html, style.css, app.js
-    admin/               # index.html, style.css, app.js
-  .gitignore
-  README.md
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   │
+│   │   ├── ai/
+│   │   │   ├── diagnosis.py
+│   │   │   ├── fallback.py
+│   │   │   ├── prompts.py
+│   │   │   └── validation.py
+│   │   │
+│   │   ├── database/
+│   │   │   └── db.py
+│   │   │
+│   │   ├── models/
+│   │   │   ├── entities.py
+│   │   │   └── schemas.py
+│   │   │
+│   │   ├── routes/
+│   │   │   └── api.py
+│   │   │
+│   │   ├── services/
+│   │   │   ├── audit.py
+│   │   │   ├── historical.py
+│   │   │   ├── incidents.py
+│   │   │   └── telemetry.py
+│   │   │
+│   │   ├── simulation/
+│   │   │   ├── generator.py
+│   │   │   └── scenarios.py
+│   │   │
+│   │   └── playbooks.py
+│   │
+│   ├── data/
+│   │   ├── .gitkeep
+│   │   └── aiops.db        # generated locally
+│   │
+│   ├── .env.example
+│   ├── pyproject.toml
+│   └── uv.lock
+│
+├── frontend/
+│   ├── config.js
+│   ├── dashboard/
+│   │   ├── index.html
+│   │   ├── style.css
+│   │   └── app.js
+│   └── admin/
+│       ├── index.html
+│       ├── style.css
+│       └── app.js
+│
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## Local setup (uv)
+## Local Setup
 
-Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/).
+### Prerequisites
+
+* Python 3.11+
+* `uv`
+
+From the project root:
 
 ```bash
 cd backend
 uv sync
-cp .env.example .env        # optional; everything works without it (fallback AI)
+```
+
+Create your environment file if required:
+
+```bash
+cp .env.example .env
+```
+
+Start the application:
+
+```bash
 uv run uvicorn app.main:app --reload
 ```
 
-Open:
+The application will be available at:
 
-- Dashboard: <http://localhost:8000/dashboard/>
-- Admin / Operations: <http://localhost:8000/admin/>
+```text
+http://localhost:8000
+```
 
-Without `GROQ_API_KEY` the platform uses its rule-based fallback and reports it
-in the diagnosis. Set `GROQ_API_KEY` in `backend/.env` to enable the LLM.
+### Dashboard
 
-### .env.example
+```text
+http://localhost:8000/dashboard/
+```
+
+### Admin / Operations
+
+```text
+http://localhost:8000/admin/
+```
+
+The application can run without a Groq API key. In that case, it uses the deterministic rule-based fallback diagnosis.
+
+To enable AI-assisted diagnosis, add your Groq API key to:
+
+```text
+backend/.env
+```
 
 ```env
-# --- LLM (Groq) ---
+GROQ_API_KEY=your_api_key_here
+```
+
+---
+
+## Environment Variables
+
+Example configuration:
+
+```env
+# --- AI ---
 GROQ_API_KEY=
 GROQ_MODEL=openai/gpt-oss-120b
 AI_TIMEOUT=45
 
-# --- Database ---
-# Local: leave empty -> SQLite at backend/data/aiops.db
-DATABASE_URL=
-
-# --- CORS / Frontend ---
-# Comma-separated extra origins (e.g. your Vercel app). localhost always allowed.
+# --- CORS ---
 CORS_ORIGINS=
 ```
 
----
+The `.env` file is intentionally excluded from Git.
 
-## Core flow (demo)
-
-1. Dashboard starts **NORMAL** with healthy readings.
-2. Open **Admin / Operations**, click **Inject Scenario** (optionally tick
-   "simulate missing/stale sources").
-3. Bad telemetry appears **immediately**; an incident is created and the AI
-   analyzes it in the background.
-4. AI returns root cause, confidence, evidence reasoning, recommended playbook,
-   risk level and missing/stale sources.
-5. **LOW** risk → auto-executed → telemetry RECOVERING → NORMAL → incident
-   RESOLVED.
-6. **MEDIUM/HIGH** risk → status `AWAITING_APPROVAL`. Type an **execution note**
-   (safe during background polling) and **Approve & Execute**.
-7. After execution the simulated infrastructure returns to NORMAL and the
-   incident becomes RESOLVED. History + audit are preserved.
-
-### Scenarios (all with correlated telemetry)
-
-- `cooling_failure` — HVAC fault, rack/hall temp spike, fan RPM max, app latency drift
-- `network_device_fault` — core/edge latency + loss, throughput drop, app errors
-- `application_deployment_issue` — checkout-service CRITICAL, error/response spikes
-- `power_ups_issue` — UPS on battery, battery drain, load spike, flaky IoT
-- `message_queue_worker_backlog` — queue depth/lag explosion, slow services
-- `noisy_client_traffic_spike` — throughput spike, edge latency/loss, app errors
+Only `.env.example` is committed.
 
 ---
 
-## Production deployment
+## Core Demo Flow
 
-### 1. Railway backend
+1. The dashboard starts in a **NORMAL** state with healthy simulated telemetry.
+2. Open **Admin / Operations**.
+3. Select and inject a simulation scenario.
+4. The simulation engine generates correlated degraded telemetry.
+5. An incident is created.
+6. The AI analyzes the available evidence.
+7. The platform produces:
 
-1. Push `backend/` (or the whole repo) to a Railway service. Railway auto-detects
-   `pyproject.toml`; set the start command:
-
-   ```
-   uvicorn app.main:app --host 0.0.0.0 --port $PORT
-   ```
-
-   (Ensure the working directory is `backend/`. If you deploy the whole repo,
-   set `root directory` to `backend` in the Railway service settings.)
-2. Add a **PostgreSQL** plugin to the service.
-3. Environment variables (all optional except the DB URL Railway injects):
-   - `DATABASE_URL` — auto-provided by the Postgres plugin (`postgres://...` is
-     handled automatically).
-   - `GROQ_API_KEY` — for LLM diagnosis.
-   - `CORS_ORIGINS` — comma-separated frontend origins, e.g. `https://your-app.vercel.app`.
-
-The app creates its tables on startup; no migration step needed.
-
-### 2. Vercel frontend
-
-1. Create a Vercel project pointing at the repo. Set:
-   - Build command: none (static)
-   - Output directory: `frontend` (or use the Vercel "static" preset)
-   - Install command: none
-2. Set the backend URL. The frontend reads `window.AIOPS_API_BASE` from
-   `frontend/config.js`. Either edit that file:
-
-   ```js
-   window.AIOPS_API_BASE = "https://your-app.up.railway.app";
-   ```
-
-   or add a Vercel environment variable and a small inline script in the HTML
-   (do not hardcode it in versioned code if you prefer env-driven):
-
-   ```html
-   <script>window.AIOPS_API_BASE = "https://your-app.up.railway.app";</script>
-   ```
-
-   Place this before the `<script src="/config.js">` tag.
-
-### 3. Production DB (Railway PostgreSQL)
-
-- Provided automatically by the Railway Postgres plugin.
-- Local development stays on SQLite; switch by setting `DATABASE_URL` to a
-  `postgresql://...` URL. `postgres://` prefixes are converted automatically.
-- The database file is never committed (see `.gitignore`).
-
-### CORS
-
-- `localhost` origins are always allowed. Add your Vercel domain via
-  `CORS_ORIGINS`. With no `CORS_ORIGINS` set, all origins are allowed (demo,
-  no credentials).
-
-### Security
-
-- `GROQ_API_KEY` is read server-side only and is never exposed to the frontend.
-- No secrets are committed (`.env`, `*.db`, `backend/data/` ignored).
+   * Root cause
+   * Confidence
+   * Reasoning
+   * Recommended playbook
+   * Risk level
+   * Missing/stale sources
+8. LOW-risk actions can be automatically executed.
+9. MEDIUM/HIGH-risk actions enter `AWAITING_APPROVAL`.
+10. A human can approve or reject the proposed action.
+11. The simulated infrastructure enters `RECOVERING`.
+12. Telemetry returns to `NORMAL`.
+13. The incident becomes `RESOLVED`.
+14. Incident history and audit records remain stored.
 
 ---
 
-## API overview
+## Simulation Scenarios
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/health` | Health + AI/db status |
-| GET | `/api/config` | Scenarios, playbooks, risk policy (public) |
-| GET | `/api/telemetry/current` | Current telemetry (state + sources) |
-| GET | `/api/telemetry/history` | Stored snapshots (incl. degraded ones) |
-| POST | `/api/scenarios/inject` | Inject scenario (creates incident + analysis) |
-| POST | `/api/scenarios/clear` | Manual clear (returns telemetry to NORMAL) |
-| GET | `/api/incidents` | Incident list (summaries with diagnosis/decision) |
-| GET | `/api/incidents/{id}` | Incident detail (+ snapshot + audit) |
-| GET | `/api/incidents/{id}/similar` | Similar historical incidents |
-| POST | `/api/incidents/{id}/approve` | Approve + execute (execution note) |
-| POST | `/api/incidents/{id}/reject` | Reject + clear scenario |
-| GET | `/api/audit` | Audit trail |
+The platform includes correlated multi-source scenarios.
+
+### `cooling_failure`
+
+Simulates:
+
+* HVAC fault
+* Facility temperature increase
+* Fan RPM changes
+* Application latency degradation
+
+### `network_device_fault`
+
+Simulates:
+
+* Network latency increase
+* Packet loss
+* Throughput degradation
+* Application errors
+
+### `application_deployment_issue`
+
+Simulates:
+
+* Application service degradation
+* Increased error rate
+* Response-time spikes
+
+### `power_ups_issue`
+
+Simulates:
+
+* UPS switching to battery
+* Battery drain
+* Increased load
+* IoT instability
+
+### `message_queue_worker_backlog`
+
+Simulates:
+
+* Queue depth increase
+* Message lag
+* Slow downstream services
+
+### `noisy_client_traffic_spike`
+
+Simulates:
+
+* Traffic spike
+* Edge latency/loss
+* Application errors
 
 ---
 
-## Test checklist
+## Missing and Stale Telemetry
 
-- [ ] Dashboard opens with NORMAL, healthy readings on all four source cards.
-- [ ] Inject a LOW-risk scenario (`cooling_failure`): degraded readings appear
-      immediately, incident auto-resolves, telemetry returns to NORMAL.
-- [ ] Inject a MEDIUM/HIGH scenario (`network_device_fault`, `power_ups_issue`):
-      status becomes `AWAITING_APPROVAL`, approval panel appears.
-- [ ] Typing in the execution note survives background polling (no page reload,
-      no focus loss, no cleared textarea).
-- [ ] Approve & Execute: incident → EXECUTED → RESOLVED, telemetry → RECOVERING → NORMAL.
-- [ ] Reject works and clears the scenario.
-- [ ] Correlated telemetry: each scenario moves multiple sources, not one value.
-- [ ] Diagnosis shows root cause, confidence, reasoning, playbook, risk, missing sources.
-- [ ] Missing/stale data: check a source box, inject → diagnosis reports it and
-      confidence drops; app does not crash.
-- [ ] Similar historical incidents are retrieved (`/api/incidents/{id}/similar`).
-- [ ] Audit trail records injection, diagnosis, approval, execution, resolution.
-- [ ] History preserved: resolved incidents and degraded snapshots remain.
-- [ ] Groq unavailable → safe fallback diagnosis labelled "fallback".
-- [ ] SQLite works locally (no PostgreSQL needed); DB file under `backend/data/`.
-- [ ] `DATABASE_URL` switching to PostgreSQL works (same ORM code path).
-- [ ] CORS: localhost + configured origins; headers present on `/api` responses.
-- [ ] No page reloads anywhere (only `fetch()` + partial DOM updates).
+The platform can simulate unavailable or stale telemetry sources.
+
+When a source is missing:
+
+* The application continues operating.
+* The missing source is reported to the diagnosis system.
+* AI confidence can decrease.
+* The diagnosis explicitly identifies incomplete evidence.
+* The application does not crash because of the missing source.
+
+This demonstrates the platform's ability to perform degraded-mode diagnosis instead of depending on every telemetry source being continuously available.
 
 ---
 
-## Notes
+## API Overview
 
-- Run from `backend/` (`uv run uvicorn app.main:app --reload`) so the venv and
-  module paths stay consistent — avoid overlapping virtualenvs in parent dirs.
-- SQLite default path is derived from the backend directory (not the shell CWD),
-  so it works from any working directory.
+| Method | Endpoint                      | Purpose                              |
+| ------ | ----------------------------- | ------------------------------------ |
+| GET    | `/api/health`                 | Application health and status        |
+| GET    | `/api/config`                 | Scenarios and playbook configuration |
+| GET    | `/api/telemetry/current`      | Current simulated telemetry          |
+| GET    | `/api/telemetry/history`      | Historical telemetry snapshots       |
+| POST   | `/api/scenarios/inject`       | Inject a simulation scenario         |
+| POST   | `/api/scenarios/clear`        | Clear the active scenario            |
+| GET    | `/api/incidents`              | List incidents                       |
+| GET    | `/api/incidents/{id}`         | Incident details                     |
+| GET    | `/api/incidents/{id}/similar` | Similar historical incidents         |
+| POST   | `/api/incidents/{id}/approve` | Approve and execute a playbook       |
+| POST   | `/api/incidents/{id}/reject`  | Reject the proposed action           |
+| GET    | `/api/audit`                  | View the audit trail                 |
+
+---
+
+## Audit Trail
+
+The platform maintains an audit trail of important operational events, including:
+
+* Scenario injection
+* Telemetry changes
+* AI diagnosis
+* Playbook recommendation
+* Approval decisions
+* Rejections
+* Simulated execution
+* Incident resolution
+
+This provides traceability for the human-governed decision-making process.
+
+---
+
+## Railway Deployment
+
+The application is designed to run as a **single Railway service**.
+
+The backend serves the API and the frontend, so a separate frontend deployment such as Vercel is not required.
+
+### 1. Create a Railway service
+
+Deploy the project repository to Railway.
+
+Set the service's root directory to:
+
+```text
+backend
+```
+
+### 2. Build / install
+
+Railway can use the project's Python dependency configuration from:
+
+```text
+backend/pyproject.toml
+```
+
+### 3. Start command
+
+Use:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+### 4. Configure the Railway Volume
+
+Because SQLite is a file-based database, attach a **Railway Volume** to the service.
+
+Mount the volume at a persistent path such as:
+
+```text
+/data
+```
+
+The production SQLite database should then be configured to use a file on that persistent volume, for example:
+
+```text
+/data/aiops.db
+```
+
+This prevents the database from being lost when the application container is restarted or redeployed.
+
+### 5. Environment variables
+
+Add the required production environment variables in Railway:
+
+```text
+GROQ_API_KEY=your_key
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+Configure the SQLite database path according to the application's production configuration.
+
+### 6. Access the application
+
+After deployment, Railway provides a public HTTPS URL.
+
+The same application provides:
+
+```text
+https://your-railway-domain/dashboard/
+https://your-railway-domain/admin/
+```
+
+No separate Vercel frontend is required.
+
+---
+
+## Production Storage
+
+The production architecture intentionally uses **SQLite + Railway Volume**.
+
+```text
+Railway Service
+      │
+      ├── FastAPI
+      │
+      ├── Frontend
+      │
+      └── SQLite
+           │
+           ▼
+      Railway Volume
+           │
+           └── aiops.db
+```
+
+The database stores application state such as:
+
+* Incidents
+* Telemetry history
+* Diagnoses
+* Audit events
+* Historical incident information
+
+The SQLite database file itself is not committed to Git.
+
+---
+
+## Security
+
+* `.env` files are excluded from Git.
+* API keys are kept server-side.
+* The Groq API key is never exposed to the frontend.
+* The project does not execute real infrastructure commands.
+* Playbook execution is simulated.
+* Risk governance is enforced by the application rather than delegated entirely to the LLM.
+* Higher-risk actions require human approval.
+
+---
+
+## Test Checklist
+
+* Dashboard opens with NORMAL telemetry.
+* All four telemetry source cards display correctly.
+* Scenario injection changes correlated telemetry.
+* LOW-risk scenarios can complete the simulated recovery flow.
+* MEDIUM/HIGH-risk scenarios require approval.
+* Approval and rejection work correctly.
+* Execution notes are preserved during polling.
+* Telemetry transitions through RECOVERING and returns to NORMAL.
+* Incidents remain available in history after resolution.
+* Audit events are recorded.
+* Similar historical incidents can be retrieved.
+* Missing/stale telemetry is handled without crashing.
+* AI diagnosis returns structured results when Groq is available.
+* Rule-based fallback works when Groq is unavailable.
+* SQLite persists application records.
+* Frontend communicates with FastAPI through `fetch()`.
+* The application can run as a single Railway service.
+
+---
+
+## Important Limitations
+
+This project is a **working AIOps simulation/demo**, not a production infrastructure controller.
+
+It currently uses:
+
+* Simulated telemetry
+* Simulated incidents
+* Simulated remediation
+* SQLite storage
+* Optional Groq AI diagnosis
+
+It does **not** currently connect directly to:
+
+* Prometheus
+* Real server telemetry
+* Real network devices
+* Real facility systems
+* Real IoT hardware
+* Real remediation infrastructure
+
+The architecture is designed so these integrations can be added later without changing the core human-governed incident and risk-management concept.
+
+---
+
+## Project Goal
+
+The goal of the platform is to demonstrate a **human-governed AIOps workflow** in which multiple telemetry sources are correlated, AI assists with root-cause analysis, recovery actions are governed by risk, consequential actions require human approval, and every operational decision is auditable.
+
+The platform prioritizes **safe, explainable, and traceable automation** rather than unrestricted autonomous infrastructure control.
