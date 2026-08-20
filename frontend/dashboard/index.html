@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIOps Operations Center</title>
+  <link rel="stylesheet" href="/dashboard/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">AIOPS</span>
+      <div class="brand-sub">OPERATIONS CENTER</div>
+    </div>
+    <div class="topbar-right">
+      <span class="env-label">NEXACART · DC-01 · MUMBAI</span>
+      <a class="nav-link" href="/admin/">Admin / Operations</a>
+      <span class="conn-badge" id="conn-badge">connecting...</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="health-strip">
+      <div class="health-pill" id="health-pill">
+        <span class="dot"></span>
+        <span id="health-label">Loading...</span>
+      </div>
+      <div class="health-meta">
+        <span id="active-scenario" class="muted">No active scenario</span>
+        <span id="last-updated" class="muted">--:--:--</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2 class="card-title">Network</h2>
+        <div class="card-header-row">
+          <span class="status-badge" id="net-status">--</span>
+          <div class="throughput-block">
+            <div class="metric-label-sm">THROUGHPUT</div>
+            <div class="metric-value-lg" id="net-throughput">-- Mbps</div>
+          </div>
+        </div>
+        <table class="tel">
+          <thead><tr><th>Device</th><th>Status</th><th>Latency</th><th>Loss</th></tr></thead>
+          <tbody id="net-devices"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Application / Services</h2>
+        <div class="card-header-row">
+          <span class="status-badge" id="app-status">--</span>
+          <div class="queue-block" id="app-queue-wrap">
+            <div class="metric-label-sm">QUEUE</div>
+            <div class="queue-items">
+              <span class="queue-item"><span class="qk">Depth</span> <span class="qv" id="q-depth">--</span></span>
+              <span class="queue-item"><span class="qk">Lag</span> <span class="qv" id="q-lag">--</span></span>
+              <span class="queue-item"><span class="qk">Consumers</span> <span class="qv" id="q-consumers">--</span></span>
+            </div>
+          </div>
+        </div>
+        <table class="tel">
+          <thead><tr><th>Service</th><th>Status</th><th>P95 (ms)</th><th>Err (%)</th></tr></thead>
+          <tbody id="app-services"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Facility</h2>
+        <div class="card-header-row">
+          <span class="status-badge" id="fac-status">--</span>
+        </div>
+        <div class="metric-grid" id="fac-metrics"></div>
+        <div class="alarms" id="fac-alarms"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">IoT Sensors</h2>
+        <div class="card-header-row">
+          <span class="status-badge" id="iot-status">--</span>
+        </div>
+        <div class="sensor-grid" id="iot-sensors"></div>
+      </div>
+
+      <div class="card span2">
+        <h2 class="card-title">AI Diagnosis</h2>
+        <div id="diagnosis-empty" class="muted pad">No incident analyzed yet. Inject a scenario from Admin to see AI diagnosis.</div>
+        <div id="diagnosis-body" class="hidden">
+          <div class="diag-top">
+            <span class="status-badge" id="diag-incident-status">--</span>
+            <span class="diag-incident-id" id="diag-incident-id"></span>
+          </div>
+          <div class="diag-rows">
+            <div class="diag-row"><span class="k">Root cause</span><span class="v" id="diag-root-cause">--</span></div>
+            <div class="diag-row"><span class="k">Confidence</span><span class="v" id="diag-confidence">--</span></div>
+            <div class="diag-row"><span class="k">Risk</span><span class="v" id="diag-risk">--</span></div>
+            <div class="diag-row"><span class="k">Recommended action</span><span class="v" id="diag-playbook">--</span></div>
+            <div class="diag-row"><span class="k">Missing / stale data</span><span class="v" id="diag-missing">--</span></div>
+            <div class="diag-row"><span class="k">Engine</span><span class="v" id="diag-engine">--</span></div>
+          </div>
+          <div class="diag-reason" id="diag-reasoning">--</div>
+          <div class="approval-panel hidden" id="approval-panel">
+            <div class="approval-label">Human approval required (MEDIUM/HIGH risk)</div>
+            <textarea class="exec-note" id="exec-note" placeholder="Execution note — what the operator wants executed and why..."></textarea>
+            <div class="approval-btns">
+              <button class="btn success approve-btn" id="approve-btn">Approve &amp; Execute</button>
+            </div>
+            <div class="inject-status" id="approve-status"></div>
+          </div>
+          <div class="exec-result hidden" id="exec-result"></div>
+        </div>
+      </div>
+
+      <div class="card span2">
+        <h2 class="card-title">Incident History</h2>
+        <div class="table-wrap">
+          <table class="tel">
+            <thead><tr><th>ID</th><th>Scenario</th><th>Status</th><th>Root cause</th><th>Risk</th><th>Playbook</th><th>Conf</th><th>Detected</th></tr></thead>
+            <tbody id="history-body"><tr><td colspan="8" class="muted">No incidents yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/dashboard/app.js"></script>
+</body>
+</html>

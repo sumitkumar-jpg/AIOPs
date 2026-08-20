@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIOps Operations Center — Admin</title>
+  <link rel="stylesheet" href="/admin/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">AIOPS</span>
+      <div class="brand-sub">OPERATIONS CENTER</div>
+    </div>
+    <div class="topbar-right">
+      <a class="nav-link" href="/dashboard/">Dashboard</a>
+      <span class="env-label">NEXACART · DC-01</span>
+      <span class="conn-badge" id="conn-badge">connecting...</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="layout">
+      <aside class="col-left">
+        <div class="card">
+          <h2 class="card-title">Inject Scenario</h2>
+          <p class="hint">Inject correlated degradation across telemetry sources. Incidents are diagnosed and resolved on the <a class="nav-link inline" href="/dashboard/">Dashboard</a>.</p>
+          <div class="scenario-list" id="scenario-list"></div>
+          <div class="block">
+            <div class="block-label">Simulate missing / stale sources</div>
+            <div id="missing-sources"></div>
+          </div>
+          <button class="btn primary" id="inject-btn" disabled>Inject Scenario</button>
+          <button class="btn ghost" id="clear-btn">Clear Scenario (manual)</button>
+          <div class="inject-status" id="inject-status"></div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">Live Telemetry</h2>
+          <div class="live-row"><span class="k">State</span><span class="v" id="live-state">--</span></div>
+          <div class="live-row"><span class="k">Scenario</span><span class="v" id="live-scenario">--</span></div>
+          <div class="live-row"><span class="k">Network</span><span class="v" id="live-network">--</span></div>
+          <div class="live-row"><span class="k">Application</span><span class="v" id="live-app">--</span></div>
+          <div class="live-row"><span class="k">Facility</span><span class="v" id="live-facility">--</span></div>
+          <div class="live-row"><span class="k">IoT</span><span class="v" id="live-iot">--</span></div>
+          <div class="live-row"><span class="k">Missing</span><span class="v" id="live-missing">--</span></div>
+        </div>
+      </aside>
+
+      <section class="col-main">
+        <div class="card">
+          <h2 class="card-title">Audit Trail</h2>
+          <div class="table-wrap">
+            <table class="tel">
+              <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Detail</th><th>Incident</th></tr></thead>
+              <tbody id="audit-body"><tr><td colspan="5" class="muted">No audit entries yet.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/admin/app.js"></script>
+</body>
+</html>
